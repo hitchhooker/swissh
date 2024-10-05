@@ -43,6 +43,7 @@ fn generate_address_from_private_key(ssh_private_key: &str) -> Result<String, Bo
         .ed25519()
         .ok_or("The provided key is not an Ed25519 key")?;
     let secret_bytes: &[u8; 32] = ed25519_keypair.private.as_ref();
+    println!("Private key (hex): {:?}", hex::encode(secret_bytes));
     let pair = Ed25519Pair::from_seed_slice(secret_bytes)?;
     Ok(pair
         .public()

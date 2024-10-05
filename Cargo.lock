@@ -3036,6 +3036,7 @@ dependencies = [
  "blake2-rfc",
  "bs58",
  "clap",
+ "hex",
  "home",
  "serde",
  "serde_json",
