@@ -1,11 +1,11 @@
-use clap::{Parser, Subcommand};
 use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
 use sp_core::ed25519::Pair as Ed25519Pair;
 use sp_core::Pair as PairTrait;
 use ssh_key::{PrivateKey, PublicKey};
 use std::fs;
-use std::path::PathBuf;
 use blake2_rfc::blake2b::Blake2b;
+use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
 const ASSET_HUB_SS58_PREFIX: u16 = 0; // Polkadot
 
@@ -16,27 +16,52 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(Debug, Clone, ValueEnum)]
+#[clap(rename_all = "upper")]
+enum AssetType {
+    Dot,
+    Usdt,
+    Usdc,
+    Ibtc,
+    Rotko,
+}
+
 #[derive(Subcommand)]
 enum Commands {
+    /// Show the SS58 address derived from the specified SSH identity
     ShowAddress {
+        /// Path to the SSH identity file (default: ~/.ssh/id_ed25519)
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
     },
-    SendMoney {
-        #[arg(short = 'f', long = "from")]
-        from: String,
-        #[arg(short = 't', long = "to")]
-        to: String,
-        #[arg(short = 'a', long = "amount")]
-        amount: u128,
+
+    /// Transfer assets to a target address
+    Transfer {
+        /// The amount of assets to transfer
+        amount: f64, // -> amount: u128,
+
+        /// The target address or identifier (e.g., SS58 address, gh:username)
+        target: String,
+
+        /// The type of asset to transfer (default: Dot)
+        #[arg(short = 't', long = "asset-type", default_value = "Dot")]
+        asset_type: AssetType,
+
+        /// Path to the SSH identity file for signing the transaction (default: ~/.ssh/id_ed25519)
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
     },
+
+    /// Fetch and display the SS58 address for a given user
     FetchKey {
+        /// User identifier (e.g., gh:username for GitHub)
         #[arg(short = 'u', long = "user")]
         user: String,
     },
+
+    /// Export the private key from the specified SSH identity
     ExportPrivateKey {
+        /// Path to the SSH identity file (default: ~/.ssh/id_ed25519)
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
     },
@@ -51,17 +76,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let address = get_ss58_address(&identity_path)?;
             println!("SS58 Address: {}", address);
         },
-        Commands::SendMoney { from, to, amount, identity_file } => {
+        Commands::Transfer { amount, target, asset_type, identity_file } => {
             let identity_path = expand_tilde(identity_file);
-            let from_address = resolve_address(from)?;
-            let to_address = resolve_address(to)?;
+            let to_address = resolve_address(target)?;
             let keypair = get_keypair(&identity_path)?;
+            let from_address = keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX));
             
-            if keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX)) != from_address {
-                return Err("The provided identity does not match the 'from' address".into());
-            }
-            
-            println!("Sending {} from {} to {}", amount, from_address, to_address);
+            println!("Sending {} {:?} from {} to {}", amount, asset_type, from_address, to_address);
             // TODO: Implement actual money sending logic using smoldot
         },
         Commands::FetchKey { user } => {
