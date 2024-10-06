@@ -143,20 +143,28 @@ mod utils {
     }
 
     pub fn resolve_address(identifier: &str) -> Result<String, Box<dyn std::error::Error>> {
-        match identifier.split(':').collect::<Vec<&str>>().as_slice() {
-            ["gh", username] => {
-                let addresses = fetch_github_ss58_addresses(username)?;
-                if addresses.is_empty() {
-                    Err("No valid SS58 addresses found for this GitHub user".into())
-                } else if addresses.len() == 1 {
-                    Ok(addresses[0].clone())
-                } else {
-                    select_key_by_index(&addresses)
-                }
-            },
-            ["kb", _username] => Err("Keybase support not implemented yet".into()),
-            ["dot", _name] => Err("Polkadot DNS support not implemented yet".into()),
-            _ => Ok(identifier.to_string()), // TODO: don't assume it's already an SS58 address
+        if let Some((_name, domain)) = identifier.rsplit_once('.') {
+            // Domain-like matching for .dot nicknames
+            match domain {
+                "dot" => Err("Polkadot DNS support not implemented yet".into()),
+                _ => Err("Unrecognized domain format".into()),
+            }
+        } else {
+            // Colon-based matching for github and keybase
+            match identifier.split(':').collect::<Vec<&str>>().as_slice() {
+                ["gh", username] => {
+                    let addresses = fetch_github_ss58_addresses(username)?;
+                    if addresses.is_empty() {
+                        Err("No valid SS58 addresses found for this GitHub user".into())
+                    } else if addresses.len() == 1 {
+                        Ok(addresses[0].clone())
+                    } else {
+                        select_key_by_index(&addresses)
+                    }
+                },
+                ["kb", _username] => Err("Keybase support not implemented yet".into()),
+                _ => Err("Unrecognized identifier format".into()),
+            }
         }
     }
 

@@ -27,7 +27,7 @@ pub enum Commands {
         /// The amount of assets to transfer
         amount: f64,
 
-        /// The target address or identifier (e.g., SS58 address, gh:username)
+        /// The target address or identifier (e.g., SS58 address, gh:username, nickname.dot)
         target: String,
 
         /// The type of asset to transfer
