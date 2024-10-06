@@ -19,20 +19,24 @@ struct Cli {
 #[derive(Debug, Clone, ValueEnum)]
 #[clap(rename_all = "upper")]
 enum AssetType {
-    Dot,
-    Usdt,
-    Usdc,
-    Ibtc,
-    Rotko,
+    Dot, // native
+    Ibtc = 1986,
+    Rnet = 181,
+    Usdc = 1337,
+    Usdt = 1984,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Show the SS58 address derived from the specified SSH identity
-    ShowAddress {
+    /// Show the SS58 address and balance of the SSH identity
+    Balance {
         /// Path to the SSH identity file (default: ~/.ssh/id_ed25519)
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
+
+        /// The type of asset to check (default: DOT)
+        #[arg(short = 't', long = "asset-type", default_value = "DOT")]
+        asset_type: AssetType,
     },
 
     /// Transfer assets to a target address
@@ -43,20 +47,13 @@ enum Commands {
         /// The target address or identifier (e.g., SS58 address, gh:username)
         target: String,
 
-        /// The type of asset to transfer (default: Dot)
-        #[arg(short = 't', long = "asset-type", default_value = "Dot")]
+        /// The type of asset to transfer (default: DOT)
+        #[arg(short = 't', long = "asset-type", default_value = "DOT")]
         asset_type: AssetType,
 
         /// Path to the SSH identity file for signing the transaction (default: ~/.ssh/id_ed25519)
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
-    },
-
-    /// Fetch and display the SS58 address for a given user
-    FetchKey {
-        /// User identifier (e.g., gh:username for GitHub)
-        #[arg(short = 'u', long = "user")]
-        user: String,
     },
 
     /// Export the private key from the specified SSH identity
@@ -71,36 +68,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::ShowAddress { identity_file } => {
+        Commands::Balance { identity_file, asset_type } => {
             let identity_path = expand_tilde(identity_file);
             let address = get_ss58_address(&identity_path)?;
-            println!("SS58 Address: {}", address);
+            let balance = 0.0; // TODO: Implement balance fetching
+            println!("Address: {}", address);
+            println!("Balance: {} {:?}", balance, asset_type);
         },
         Commands::Transfer { amount, target, asset_type, identity_file } => {
             let identity_path = expand_tilde(identity_file);
             let to_address = resolve_address(target)?;
             let keypair = get_keypair(&identity_path)?;
             let from_address = keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX));
-            
-            println!("Sending {} {:?} from {} to {}", amount, asset_type, from_address, to_address);
-            // TODO: Implement actual money sending logic using smoldot
-        },
-        Commands::FetchKey { user } => {
-            match user.split(':').collect::<Vec<&str>>().as_slice() {
-                ["gh", username] => {
-                    let addresses = fetch_github_ss58_addresses(username)?;
-                    if addresses.len() == 1 {
-                        println!("SS58 Address: {}", addresses[0]);
-                    } else {
-                        let selected_address = select_key_by_index(&addresses)?;
-                        println!("Selected SS58 Address: {}", selected_address);
-                    }
+
+            match asset_type {
+                AssetType::Dot => {
+                    println!("Sending {} DOT from {} to {}", amount, from_address, to_address);
+                    // TODO: Implement native DOT transfer using smoldot
                 },
-                ["kb", _username] => return Err("Keybase support not implemented yet".into()),
-                ["dot", _name] => return Err("Polkadot DNS support not implemented yet".into()),
                 _ => {
-                    let address = resolve_address(user)?;
-                    println!("SS58 Address: {}", address);
+                    let asset_id = asset_type.clone() as u128;
+                    println!("Sending {} {:?} (ID: {}) from {} to {}", amount, asset_type, asset_id, from_address, to_address);
+                    // TODO: Implement asset transfer using smoldot
                 },
             }
         },
@@ -239,25 +228,4 @@ fn export_private_key(identity_file: &PathBuf) -> Result<(), Box<dyn std::error:
     println!("IMPORTANT: Keep this key secret and secure. Do not share it with anyone.");
 
     Ok(())
-}
-
-// TODO: Implement smoldot integration for blockchain interactions
-#[allow(dead_code)]
-mod smoldot_integration {
-
-    pub fn initialize_client() -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: init smoldot
-        unimplemented!()
-    }
-
-    pub fn send_transaction(_from: &str, _to: &str, _amount: u128) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO: send transaction using smoldot
-        // author.submitExtrinsic(signed_call_data)
-        unimplemented!()
-    }
-
-    pub fn get_balance(_address: &str) -> Result<u128, Box<dyn std::error::Error>> {
-        // TODO: get balance using smoldot
-        unimplemented!()
-    }
 }
