@@ -19,12 +19,12 @@ pub mod balance {
     use super::*;
     use crate::types::AssetType;
 
-    pub fn check_balance(identity_file: &PathBuf, asset_type: AssetType) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn check_balance(identity_file: &PathBuf, token: AssetType) -> Result<(), Box<dyn std::error::Error>> {
         let identity_path = utils::expand_tilde(identity_file);
         let address = crypto::get_ss58_address(&identity_path)?;
         let balance = 0.0; // TODO: Implement balance fetching
         println!("Address: {}", address);
-        println!("Balance: {} {:?}", balance, asset_type);
+        println!("Balance: {} {:?}", balance, token);
         Ok(())
     }
 }
@@ -33,20 +33,20 @@ pub mod transfer {
     use super::*;
     use crate::types::AssetType;
 
-    pub fn send_assets(amount: f64, target: &str, asset_type: AssetType, identity_file: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn send_assets(amount: f64, target: &str, token: AssetType, identity_file: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let identity_path = utils::expand_tilde(identity_file);
         let to_address = utils::resolve_address(target)?;
         let keypair = crypto::get_keypair(&identity_path)?;
         let from_address = keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX));
 
-        match asset_type {
+        match token {
             AssetType::Dot => {
-                println!("Sending {} DOT from {} to {}", amount, from_address, to_address);
+                println!("Sending {} {:?} from {} to {}", amount, token, from_address, to_address);
                 // TODO: Implement native DOT transfer using smoldot
             },
             _ => {
-                let asset_id = asset_type.clone() as u128;
-                println!("Sending {} {:?} (ID: {}) from {} to {}", amount, asset_type, asset_id, from_address, to_address);
+                let asset_id = token.clone() as u128;
+                println!("Sending {} {:?} (ID: {}) from {} to {}", amount, token, asset_id, from_address, to_address);
                 // TODO: Implement asset transfer using smoldot
             },
         }
