@@ -19,7 +19,7 @@ pub enum Commands {
 
         /// The type of asset to check
         #[arg(short = 't', long = "asset-type", default_value = "DOT")]
-        asset_type: AssetType,
+        token: AssetType,
     },
 
     /// Transfer assets to a target address
@@ -32,7 +32,7 @@ pub enum Commands {
 
         /// The type of asset to transfer
         #[arg(short = 't', long = "asset-type", default_value = "DOT")]
-        asset_type: AssetType,
+        token: AssetType,
 
         /// Path to the SSH identity file for signing the transaction
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
