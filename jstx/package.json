@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "@polkadot/api": "^14.0.1",
-    "@polkadot/util-crypto": "^13.1.1"
-  }
-}
