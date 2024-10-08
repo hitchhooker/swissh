@@ -5,136 +5,65 @@ use ssh_key::{PrivateKey, PublicKey};
 use std::fs;
 use blake2_rfc::blake2b::Blake2b;
 use std::path::PathBuf;
+use subxt::{client::OnlineClient, lightclient::LightClient, PolkadotConfig};
+use std::error::Error;
 
 pub mod types;
+use types::AssetType;
 
+
+#[subxt::subxt(runtime_metadata_path = "artifacts/polkadot.scale")]
+pub mod polkadot {}
+
+#[subxt::subxt(runtime_metadata_path = "artifacts/asset_hub_polkadot.scale")]
+pub mod asset_hub_polkadot {}
+
+#[subxt::subxt(runtime_metadata_path = "artifacts/people_polkadot.scale")]
+pub mod people_polkadot {}
+
+//pub const ASSET_HUB_SS58_PREFIX: u16 = 0; // Polkadot
+//pub const ASSET_HUB_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/asset-hub-polkadot.json";
+//pub const PEOPLE_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/people-polkadot.json";
+//pub const POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/polkadot/node/service/chain-specs/polkadot.json";
 // Constants
-pub const ASSET_HUB_SS58_PREFIX: u16 = 0; // Polkadot
-pub const ASSET_HUB_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/asset-hub-polkadot.json";
-pub const ASSET_HUB_POLKADOT_WS_URL: &str = "wss://asset-hub-polkadot.dotters.network";
-pub const PEOPLE_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/people-polkadot.json";
-pub const PEOPLE_POLKADOT_WS_URL: &str = "wss://people-polkadot.dotters.network";
-pub const POLKADOT_WS_URL: &str = "wss://polkadot.dotters.network";
-pub const POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/polkadot/node/service/chain-specs/polkadot.json";
+const ASSET_HUB_POLKADOT_SPEC: &str =
+    include_str!("../artifacts/asset-hub-polkadot.json");
+const PEOPLE_POLKADOT_SPEC: &str =
+    include_str!("../artifacts/people-polkadot.json");
+const POLKADOT_SPEC: &str = include_str!("../artifacts/polkadot.json");
 
-pub const ASSET_HUB_POLKADOT_SPEC_FILE: &str = "asset_hub_polkadot_spec.json";
-pub const PEOPLE_POLKADOT_SPEC_FILE: &str = "people_polkadot_spec.json";
-pub const POLKADOT_SPEC_FILE: &str = "polkadot_spec.json";
+pub struct Client {
+    polkadot_api: OnlineClient<PolkadotConfig>,
+    asset_hub_api: OnlineClient<PolkadotConfig>,
+    people_api: OnlineClient<PolkadotConfig>,
+}
 
-pub mod client {
-    use super::*;
-    use std::fs;
-    use reqwest;
-    use subxt_lightclient::{LightClient, ChainConfig, LightClientRpc, LightClientError};
+impl Client {
+    pub async fn new() -> Result<Self, Box<dyn Error>> {
+        let (lightclient, polkadot_rpc) = LightClient::relay_chain(POLKADOT_SPEC)?;
+        let asset_hub_rpc = lightclient.parachain(ASSET_HUB_POLKADOT_SPEC)?;
+        let people_rpc = lightclient.parachain(PEOPLE_POLKADOT_SPEC)?;
 
-    /// Downloads the chain specifications for the parachains and relay chain.
-    pub fn download_specs() -> Result<(), Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::new();
+        let polkadot_api = OnlineClient::<PolkadotConfig>::from_rpc_client(polkadot_rpc).await?; let asset_hub_api = OnlineClient::<PolkadotConfig>::from_rpc_client(asset_hub_rpc).await?;
+        let asset_hub_api = OnlineClient::<PolkadotConfig>::from_rpc_client(asset_hub_rpc).await?;
+        let people_api = OnlineClient::<PolkadotConfig>::from_rpc_client(people_rpc).await?;
 
-        // Download and save Asset Hub Polkadot spec
-        let asset_hub_spec = client.get(ASSET_HUB_POLKADOT_SPEC_URL).send()?.text()?;
-        fs::write(ASSET_HUB_POLKADOT_SPEC_FILE, asset_hub_spec)?;
 
-        // Download and save People Polkadot spec
-        let people_spec = client.get(PEOPLE_POLKADOT_SPEC_URL).send()?.text()?;
-        fs::write(PEOPLE_POLKADOT_SPEC_FILE, people_spec)?;
-
-        // Download and save Polkadot relay chain spec
-        let polkadot_spec = client.get(POLKADOT_SPEC_URL).send()?.text()?;
-        fs::write(POLKADOT_SPEC_FILE, polkadot_spec)?;
-
-        Ok(())
-    }
-
-    /// Retrieves the chain configuration based on the chain identifier.
-    pub fn get_chain_config(chain: &str) -> Result<ChainConfig, Box<dyn std::error::Error>> {
-        let spec_file = match chain {
-            "asset_hub" => ASSET_HUB_POLKADOT_SPEC_FILE,
-            "people" => PEOPLE_POLKADOT_SPEC_FILE,
-            "polkadot" => POLKADOT_SPEC_FILE,
-            _ => return Err("Invalid chain specified".into()),
-        };
-
-        // Create ChainConfig from the spec file
-        let chain_config = ChainConfig::chain_spec(spec_file);
-        Ok(chain_config)
-    }
-
-    /// Establishes a connection to the Polkadot relay chain.
-    pub fn get_relay_client() -> Result<(LightClient, LightClientRpc), Box<dyn std::error::Error>> {
-        let _ws_url = POLKADOT_WS_URL;
-        let spec_file = POLKADOT_SPEC_FILE;
-
-        // Get the chain configuration for the Polkadot relay chain
-        let chain_config = ChainConfig::chain_spec(spec_file);
-
-        // Establish the relay chain connection using the LightClient::relay_chain method
-        let relay_client = LightClient::relay_chain(chain_config)?;
-
-        Ok(relay_client)
-    }
-
-    /// Establishes a connection to a parachain using an existing relay chain client.
-    pub fn get_parachain_client(
-        relay_client: &LightClient, 
-        chain: &str
-    ) -> Result<LightClientRpc, Box<dyn std::error::Error>> {
-        let (_ws_url, spec_file) = match chain {
-            "asset_hub" => (ASSET_HUB_POLKADOT_WS_URL, ASSET_HUB_POLKADOT_SPEC_FILE),
-            "people" => (PEOPLE_POLKADOT_WS_URL, PEOPLE_POLKADOT_SPEC_FILE),
-            _ => return Err("Invalid parachain specified".into()),
-        };
-
-        // Get the chain configuration for the parachain
-        let chain_config = ChainConfig::chain_spec(spec_file);
-
-        // Establish connection to the parachain using the relay chain client
-        let parachain_client = relay_client.parachain(chain_config)?;
-
-        Ok(parachain_client)
+        Ok(Self {
+            polkadot_api,
+            asset_hub_api,
+            people_api,
+        })
     }
 }
 
 pub mod balance {
-    use super::*;
-    use crate::types::AssetType;
-
-
-    pub fn check_balance(identity_file: &PathBuf, token: AssetType) -> Result<(), Box<dyn std::error::Error>> {
-        let identity_path = utils::expand_tilde(identity_file);
-        let address = crypto::get_ss58_address(&identity_path)?;
-        let balance = 0.0; // TODO: Implement balance fetching
-        println!("Address: {}", address);
-        println!("Balance: {} {:?}", balance, token);
-        Ok(())
-    }
 }
 
 pub mod transfer {
-    use super::*;
-    use crate::types::AssetType;
 
-    pub fn send_assets(amount: f64, target: &str, token: AssetType, identity_file: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        let identity_path = utils::expand_tilde(identity_file);
-        let to_address = utils::resolve_address(target)?;
-        let keypair = crypto::get_keypair(&identity_path)?;
-        let from_address = keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX));
-
-        match token {
-            AssetType::Dot => {
-                println!("Sending {} {:?} from {} to {}", amount, token, from_address, to_address);
-                // TODO: Implement native DOT transfer using smoldot
-            },
-            _ => {
-                let asset_id = token.clone() as u128;
-                println!("Sending {} {:?} (ID: {}) from {} to {}", amount, token, asset_id, from_address, to_address);
-                // TODO: Implement asset transfer using smoldot
-            },
-        }
-
-        Ok(())
-    }
 }
+
 
 pub mod export_private_key {
     use super::*;
