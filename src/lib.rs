@@ -1,50 +1,54 @@
-use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
-use sp_core::ed25519::Pair as Ed25519Pair;
-use sp_core::Pair as PairTrait;
-use ssh_key::{PrivateKey, PublicKey};
-use std::fs;
+// src/lib.rs
 use blake2_rfc::blake2b::Blake2b;
+use crate::types::AssetType;
+use ssh_key::{PrivateKey, PublicKey};
+use std::error::Error;
+use std::fs;
 use std::path::PathBuf;
 use subxt::{client::OnlineClient, lightclient::LightClient, PolkadotConfig};
-use std::error::Error;
+use sp_core::{crypto::{Ss58AddressFormat, Ss58Codec}, ed25519::Pair as Ed25519Pair, Pair as PairTrait};
 
 pub mod types;
-use types::AssetType;
 
-
+#[cfg(any(feature = "balance", feature = "transfer"))]
 #[subxt::subxt(runtime_metadata_path = "artifacts/polkadot.scale")]
 pub mod polkadot {}
 
+#[cfg(any(feature = "balance", feature = "transfer"))]
 #[subxt::subxt(runtime_metadata_path = "artifacts/asset_hub_polkadot.scale")]
 pub mod asset_hub_polkadot {}
 
+#[cfg(any(feature = "balance", feature = "transfer"))]
 #[subxt::subxt(runtime_metadata_path = "artifacts/people_polkadot.scale")]
 pub mod people_polkadot {}
 
-//pub const ASSET_HUB_SS58_PREFIX: u16 = 0; // Polkadot
 //pub const ASSET_HUB_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/asset-hub-polkadot.json";
 //pub const PEOPLE_POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/cumulus/parachains/chain-specs/people-polkadot.json";
 //pub const POLKADOT_SPEC_URL: &str = "https://raw.githubusercontent.com/paritytech/polkadot-sdk/master/polkadot/node/service/chain-specs/polkadot.json";
 // Constants
+pub const ASSET_HUB_SS58_PREFIX: u16 = 0; // Polkadot
 const ASSET_HUB_POLKADOT_SPEC: &str =
-    include_str!("../artifacts/asset-hub-polkadot.json");
+include_str!("../artifacts/asset-hub-polkadot.json");
 const PEOPLE_POLKADOT_SPEC: &str =
-    include_str!("../artifacts/people-polkadot.json");
+include_str!("../artifacts/people-polkadot.json");
 const POLKADOT_SPEC: &str = include_str!("../artifacts/polkadot.json");
 
+#[cfg(any(feature = "balance", feature = "transfer"))]
+#[allow(dead_code)]
 pub struct Client {
     polkadot_api: OnlineClient<PolkadotConfig>,
     asset_hub_api: OnlineClient<PolkadotConfig>,
     people_api: OnlineClient<PolkadotConfig>,
 }
 
+#[cfg(any(feature = "balance", feature = "transfer"))]
 impl Client {
     pub async fn new() -> Result<Self, Box<dyn Error>> {
         let (lightclient, polkadot_rpc) = LightClient::relay_chain(POLKADOT_SPEC)?;
         let asset_hub_rpc = lightclient.parachain(ASSET_HUB_POLKADOT_SPEC)?;
         let people_rpc = lightclient.parachain(PEOPLE_POLKADOT_SPEC)?;
 
-        let polkadot_api = OnlineClient::<PolkadotConfig>::from_rpc_client(polkadot_rpc).await?; let asset_hub_api = OnlineClient::<PolkadotConfig>::from_rpc_client(asset_hub_rpc).await?;
+        let polkadot_api = OnlineClient::<PolkadotConfig>::from_rpc_client(polkadot_rpc).await?;
         let asset_hub_api = OnlineClient::<PolkadotConfig>::from_rpc_client(asset_hub_rpc).await?;
         let people_api = OnlineClient::<PolkadotConfig>::from_rpc_client(people_rpc).await?;
 
@@ -57,20 +61,86 @@ impl Client {
     }
 }
 
+#[cfg(feature = "balance")]
 pub mod balance {
+    use super::*;
+    use std::str::FromStr;
+    use subxt::utils::AccountId32;
+
+    pub async fn check_balance(
+        client: &Client,
+        identity_file: &PathBuf,
+        token: AssetType,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        println!("balancedebug");
+        let identity_path = utils::expand_tilde(identity_file);
+        let address = crypto::get_ss58_address(&identity_path)?;
+
+        // Parse the SS58 address into AccountId32
+        let account_id = AccountId32::from_str(&address)
+            .map_err(|e| format!("Invalid SS58 address: {}", e))?;
+
+        let balance = match token {
+            AssetType::Dot => fetch_dot_balance(client, &account_id).await?,
+            _ => return Err("Balance check for non-DOT assets not yet implemented".into()),
+        };
+
+        println!("Address: {}", address);
+        println!("Balance: {} {:?}", balance, token);
+        Ok(())
+    }
+
+    async fn fetch_dot_balance(
+        client: &Client,
+        account_id: &AccountId32,
+    ) -> Result<f64, Box<dyn std::error::Error>> {
+        let balance = client
+            .polkadot_api
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&polkadot::storage().system().account(account_id))
+            .await?
+            .ok_or("Account not found")?
+            .data
+            .free;
+
+        Ok(balance as f64 / 10_000_000_000.0)
+    }
 }
 
+#[cfg(feature = "transfer")]
 pub mod transfer {
+    use super::*;
 
+    pub async fn send_assets(_client: &Client, amount: f64, target: &str, token: AssetType, identity_file: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        let identity_path = utils::expand_tilde(identity_file);
+        let to_address = utils::resolve_address(target)?;
+        let keypair = crypto::get_keypair(&identity_path)?;
+        let from_address = keypair.public().to_ss58check_with_version(Ss58AddressFormat::custom(ASSET_HUB_SS58_PREFIX));
+
+        match token {
+            AssetType::Dot => {
+                println!("Sending {} {:?} from {} to {}", amount, token, from_address, to_address);
+                // TODO: Implement native DOT transfer using smoldot
+            },
+            _ => {
+                let asset_id = token.clone() as u128;
+                println!("Sending {} {:?} (ID: {}) from {} to {}", amount, token, asset_id, from_address, to_address);
+                // TODO: Implement asset transfer using smoldot
+            },
+        }
+
+        Ok(())
+    }
 }
-
 
 pub mod export_private_key {
     use super::*;
 
     pub fn export(identity_file: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         let identity_path = utils::expand_tilde(identity_file);
-        
+
         println!("WARNING: Exporting your private key can be very dangerous and may lead to loss of funds if mishandled.");
         println!("Only proceed if you fully understand the risks and are using this for a trusted application.");
         println!("Are you sure you want to continue? (y/N)");

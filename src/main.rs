@@ -1,4 +1,4 @@
-// main.rs
+// src/main.rs
 mod cli;
 use cli::{Cli, Commands};
 use clap::Parser;

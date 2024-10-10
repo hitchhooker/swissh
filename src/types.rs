@@ -1,6 +1,5 @@
-// types.rs
+// src/types.rs
 use clap::ValueEnum;
-use thiserror;
 
 #[derive(Debug, Clone, ValueEnum)]
 #[clap(rename_all = "upper")]

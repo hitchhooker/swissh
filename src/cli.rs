@@ -1,3 +1,4 @@
+// src/cli.rs
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use swissh::types::AssetType;
