@@ -1,23 +1,33 @@
 // main.rs
-mod cli;
-use cli::{Cli, Commands};
+mod cli; // Your existing CLI module
+
 use clap::Parser;
-use swissh::balance;
-use swissh::transfer;
-use swissh::export_private_key;
+use cli::{Cli, Commands}; // Assuming Cli and Commands are pub in cli.rs
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
+// Import the functions and error type from your refactored swissh library
+use swissh::{
+    check_and_print_balance,
+    create_and_send_transfer,
+    export_hex_private_key_interactive,
+    AppError, // Using the specific error type from your library
+};
 
-    match cli.command {
+#[tokio::main]
+async fn main() -> Result<(), AppError> {
+    let cli_args = Cli::parse();
+
+    match cli_args.command {
         Commands::Balance { identity_file, token } => {
-            balance::check_balance(&identity_file, token)
-        },
+            // `check_and_print_balance` is now async
+            check_and_print_balance(&identity_file, token).await
+        }
         Commands::Transfer { amount, target, token, identity_file } => {
-            transfer::send_assets(amount, &target, token, &identity_file)
-        },
-        Commands::ExportPrivateKey { identity_file } => {
-            export_private_key::export(&identity_file)
-        },
+            // `create_and_send_transfer` is now async
+            // `amount` is already f64 from clap, matching the function signature
+            create_and_send_transfer(&identity_file, amount, &target, token).await
+        }
+        Commands::Export { identity_file } => {
+            export_hex_private_key_interactive(&identity_file)
+        }
     }
 }

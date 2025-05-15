@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use swissh::types::AssetType;
+use swissh::types::AssetType; // This path is still correct
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -40,7 +40,7 @@ pub enum Commands {
     },
 
     /// Export the private key from the specified SSH identity
-    ExportPrivateKey {
+    Export {
         /// Path to the SSH identity file
         #[arg(short = 'i', long = "identity", default_value = "~/.ssh/id_ed25519")]
         identity_file: PathBuf,
