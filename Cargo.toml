@@ -5,21 +5,23 @@ edition = "2021"
 
 [dependencies]
 smoldot = "0.18.0"
-clap = { version = "4.1.6", features = ["derive"] }
+clap = { version = "4.5.38", features = ["derive"] }
 sp-core = "34.0.0"
-sp-runtime = "39.0.1"
-ssh-key = "0.6.6"
+sp-runtime = "39.0.5"
+ssh-key = { version = "0.6.7", features = ["encryption", "ed25519"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-home = "0.5.3"
+home = "0.5.11"
 bs58 = "0.5.1"
 blake2-rfc = "0.2.18"
 hex = "0.4.3"
 dirs = "5.0.1"
-reqwest = { version = "0.12.8", features = ["blocking"] }
+reqwest = { version = "0.12.15", features = ["blocking"] }
 subxt = { version = "0.37", default-features = false, features = ["web"] }
 subxt-lightclient = "0.37.0"
 tokio = { version = "1", features = ["full"] }
 rpassword = "7"
 anyhow = "1.0"
 thiserror = "1.0"
+keyring = "1.2.1"
+tempfile = "3.20.0"
