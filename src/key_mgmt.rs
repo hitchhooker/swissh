@@ -85,7 +85,8 @@ pub fn load_ed25519_keypair_from_file(identity_file: &PathBuf) -> Result<Ed25519
         .map_err(|e| AppError::FileSystem { path: identity_file.clone(), source: e })?; // Explicitly use FileSystem for path context
 
     let key_path_display = identity_file.to_string_lossy();
-    let keyring_entry = Entry::new(KEYRING_SERVICE_NAME, &key_path_display);
+    let keyring_entry = Entry::new(KEYRING_SERVICE_NAME, &key_path_display)
+        .map_err(|e| map_keyring_error(e, "access keyring for", &key_path_display))?;
 
     match SshPrivateKey::from_openssh(&file_contents) { // Uses #[from] ssh_key::Error -> AppError::SshKey via ?
         Ok(ssh_private_key) => {
