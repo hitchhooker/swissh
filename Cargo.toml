@@ -17,7 +17,8 @@ blake2-rfc = "0.2.18"
 hex = "0.4.3"
 dirs = "6.0.0"
 reqwest = { version = "0.12.15", features = ["blocking"] }
-subxt = { version = "0.42", default-features = false, features = ["web"] }
+#subxt = { version = "0.42", default-features = false, features = ["web"] }
+subxt = { version = "0.42", default-features = false, features = ["native"] }
 subxt-lightclient = "0.42.1"
 tokio = { version = "1", features = ["full"] }
 rpassword = "7"
@@ -25,3 +26,4 @@ anyhow = "1.0"
 thiserror = "2.0"
 keyring = "3.6.2"
 tempfile = "3.20.0"
+parity-scale-codec = "3.7"
